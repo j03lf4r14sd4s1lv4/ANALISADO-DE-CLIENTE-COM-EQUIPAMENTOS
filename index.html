@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Análise de Clientes - OLT (XLSX/CSV com Paginação)</title>
+    <title>Análise de Clientes - OLT (filtro ONU MAC por prefixo)</title>
     <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
     <style>
         * { box-sizing: border-box; font-family: 'Segoe UI', sans-serif; }
@@ -59,7 +59,7 @@
 
     <h1>
         📊 Análise de Clientes - OLT
-        <small>com paginação • XLSX e CSV</small>
+        <small>filtro ONU MAC por prefixo (4 caracteres)</small>
     </h1>
 
     <div class="upload-area" id="uploadArea">
@@ -69,7 +69,8 @@
         <input type="file" id="fileInput" accept=".csv,.json,.xlsx,.xls">
         <label for="fileInput" class="upload-label">Escolher arquivo</label>
         <p style="margin: 10px 0 0 0; font-size: 0.85rem; color: #5e6f8d;">
-            Colunas reconhecidas automaticamente: <strong>Transmissor</strong> (OLT), <strong>Caixa de atendimento</strong> (MEC), <strong>Plano</strong>, <strong>Cliente</strong>, <strong>Status</strong>.
+            Colunas reconhecidas: Transmissor (OLT), Caixa de atendimento (MEC), Plano, Cliente, Login, Status, <strong>ONU MAC</strong>.<br>
+            O filtro ONU MAC exibe os <strong>4 primeiros caracteres</strong> de cada serial.
         </p>
     </div>
 
@@ -78,22 +79,30 @@
         <span id="filteredInfo" class="badge">0 exibidos</span>
     </div>
 
-    <div class="filters">
+    <div class="filters" id="filtersContainer">
         <div class="filter-group">
             <label for="filterNome">Nome / ID</label>
             <input type="text" id="filterNome" placeholder="Buscar...">
         </div>
         <div class="filter-group">
             <label for="filterPlano">Plano</label>
-            <input type="text" id="filterPlano" placeholder="Ex: Premium">
+            <select id="filterPlano"><option value="">Todos</option></select>
         </div>
         <div class="filter-group">
             <label for="filterOLT">Aparelho OLT</label>
-            <input type="text" id="filterOLT" placeholder="Modelo ou status">
+            <select id="filterOLT"><option value="">Todos</option></select>
         </div>
         <div class="filter-group">
             <label for="filterMEC">Aparelho MEC</label>
-            <input type="text" id="filterMEC" placeholder="Modelo ou status">
+            <select id="filterMEC"><option value="">Todos</option></select>
+        </div>
+        <div class="filter-group">
+            <label for="filterLogin">Login</label>
+            <select id="filterLogin"><option value="">Todos</option></select>
+        </div>
+        <div class="filter-group">
+            <label for="filterOnuMac">ONU MAC (prefixo)</label>
+            <select id="filterOnuMac"><option value="">Todos</option></select>
         </div>
         <div class="filter-group">
             <label for="filterStatus">Status</label>
@@ -168,6 +177,8 @@
         const filterPlano = document.getElementById('filterPlano');
         const filterOLT = document.getElementById('filterOLT');
         const filterMEC = document.getElementById('filterMEC');
+        const filterLogin = document.getElementById('filterLogin');
+        const filterOnuMac = document.getElementById('filterOnuMac');
         const filterStatus = document.getElementById('filterStatus');
 
         const btnFiltrar = document.getElementById('btnFiltrar');
@@ -182,7 +193,14 @@
             return str.toString().toLowerCase().trim();
         }
 
-        // Mapeamento de colunas
+        // Extrai os 4 primeiros caracteres (ou o valor completo se menor)
+        function pegarPrefixo(valor) {
+            if (!valor) return '';
+            const str = valor.toString().trim();
+            return str.length >= 4 ? str.substring(0, 4) : str;
+        }
+
+        // Mapeamento de colunas (inclui ONU MAC)
         function mapearColunas(dados, cabecalho) {
             const mapa = {
                 'id': ['id', 'código', 'codigo', 'cliente_id', 'id contrato'],
@@ -190,6 +208,8 @@
                 'plano': ['plano', 'tipo_plano', 'pacote'],
                 'aparelho_olt': ['aparelho_olt', 'olt', 'modelo_olt', 'transmissor'],
                 'aparelho_mec': ['aparelho_mec', 'mec', 'modelo_mec', 'caixa de atendimento'],
+                'login': ['login', 'usuario', 'user'],
+                'onu_mac': ['onu mac', 'onumac', 'mac', 'serial'],
                 'status': ['status', 'situacao', 'ativo', 'status contrato', 'status acesso']
             };
             const colMap = {};
@@ -199,6 +219,15 @@
                     const idx = cabecalhoLower.indexOf(variacao);
                     if (idx !== -1) {
                         colMap[cabecalho[idx]] = padrao;
+                        break;
+                    }
+                }
+            }
+            // Fallback para ONU MAC
+            if (!Object.values(colMap).includes('onu_mac')) {
+                for (const col of cabecalho) {
+                    if (col.toLowerCase().includes('onu') || col.toLowerCase().includes('mac') || col.toLowerCase().includes('serial')) {
+                        colMap[col] = 'onu_mac';
                         break;
                     }
                 }
@@ -215,6 +244,14 @@
                 for (const col of cabecalho) {
                     if (col.toLowerCase().includes('caixa de atendimento') || col.toLowerCase().includes('mec')) {
                         colMap[col] = 'aparelho_mec';
+                        break;
+                    }
+                }
+            }
+            if (!Object.values(colMap).includes('login')) {
+                for (const col of cabecalho) {
+                    if (col.toLowerCase() === 'login') {
+                        colMap[col] = 'login';
                         break;
                     }
                 }
@@ -266,6 +303,39 @@
             return { cabecalho, dados };
         }
 
+        // Popula os combos com valores únicos (ONU MAC usa prefixo de 4 caracteres)
+        function popularCombos(dados) {
+            const campos = ['plano', 'aparelho_olt', 'aparelho_mec', 'login', 'onu_mac'];
+            const selects = [filterPlano, filterOLT, filterMEC, filterLogin, filterOnuMac];
+            campos.forEach((campo, idx) => {
+                const valores = new Set();
+                dados.forEach(row => {
+                    const val = row[campo];
+                    if (val !== undefined && val !== null && val !== '') {
+                        // Para ONU MAC, usamos apenas os 4 primeiros caracteres
+                        let valorParaExibir = val.toString().trim();
+                        if (campo === 'onu_mac') {
+                            valorParaExibir = pegarPrefixo(valorParaExibir);
+                        }
+                        if (valorParaExibir) valores.add(valorParaExibir);
+                    }
+                });
+                const select = selects[idx];
+                const valorAtual = select.value;
+                select.innerHTML = '<option value="">Todos</option>';
+                const sorted = Array.from(valores).sort((a,b) => a.localeCompare(b));
+                sorted.forEach(v => {
+                    const opt = document.createElement('option');
+                    opt.value = v;
+                    opt.textContent = v;
+                    select.appendChild(opt);
+                });
+                if (valorAtual && valores.has(valorAtual)) {
+                    select.value = valorAtual;
+                }
+            });
+        }
+
         // Carregar arquivo
         function carregarArquivo(file) {
             const reader = new FileReader();
@@ -297,7 +367,7 @@
                     colunas = resultadoMap.colunas;
                     dadosOriginais = dados;
                     arquivoCarregado = true;
-                    // Aplica filtros iniciais (sem filtro)
+                    popularCombos(dados);
                     dadosFiltrados = dadosOriginais.slice();
                     paginaAtual = 1;
                     atualizarTabela();
@@ -372,9 +442,11 @@
         function aplicarFiltros(resetPagina = true) {
             if (!arquivoCarregado) { alert('Carregue um arquivo primeiro.'); return; }
             const nomeFiltro = normalizarString(filterNome.value);
-            const planoFiltro = normalizarString(filterPlano.value);
-            const oltFiltro = normalizarString(filterOLT.value);
-            const mecFiltro = normalizarString(filterMEC.value);
+            const planoFiltro = filterPlano.value;
+            const oltFiltro = filterOLT.value;
+            const mecFiltro = filterMEC.value;
+            const loginFiltro = filterLogin.value;
+            const onuMacFiltro = filterOnuMac.value;
             const statusFiltro = filterStatus.value;
 
             dadosFiltrados = dadosOriginais.filter(row => {
@@ -383,16 +455,26 @@
                     if (!nome.includes(nomeFiltro)) return false;
                 }
                 if (planoFiltro) {
-                    const plano = normalizarString(row.plano || '');
-                    if (!plano.includes(planoFiltro)) return false;
+                    const plano = (row.plano || '').toString().trim();
+                    if (plano !== planoFiltro) return false;
                 }
                 if (oltFiltro) {
-                    const olt = normalizarString(row.aparelho_olt || '');
-                    if (!olt.includes(oltFiltro)) return false;
+                    const olt = (row.aparelho_olt || '').toString().trim();
+                    if (olt !== oltFiltro) return false;
                 }
                 if (mecFiltro) {
-                    const mec = normalizarString(row.aparelho_mec || '');
-                    if (!mec.includes(mecFiltro)) return false;
+                    const mec = (row.aparelho_mec || '').toString().trim();
+                    if (mec !== mecFiltro) return false;
+                }
+                if (loginFiltro) {
+                    const login = (row.login || '').toString().trim();
+                    if (login !== loginFiltro) return false;
+                }
+                if (onuMacFiltro) {
+                    // Compara com os 4 primeiros caracteres da ONU MAC
+                    const onuMac = (row.onu_mac || '').toString().trim();
+                    const prefixo = pegarPrefixo(onuMac);
+                    if (prefixo !== onuMacFiltro) return false;
                 }
                 if (statusFiltro) {
                     const status = normalizarString(row.status || '');
@@ -407,10 +489,7 @@
 
         function limparFiltros() {
             filterNome.value = '';
-            filterPlano.value = '';
-            filterOLT.value = '';
-            filterMEC.value = '';
-            filterStatus.value = '';
+            [filterPlano, filterOLT, filterMEC, filterLogin, filterOnuMac, filterStatus].forEach(sel => sel.value = '');
             if (arquivoCarregado) {
                 dadosFiltrados = dadosOriginais.slice();
                 paginaAtual = 1;
@@ -426,7 +505,7 @@
             });
             paginaAtual = 1;
             atualizarTabela();
-            filterOLT.value = 'trocar|defeito|substituir|antigo';
+            filterOLT.value = '';
         }
 
         function exportarCSV() {
@@ -459,11 +538,6 @@
             dadosFiltrados = dadosOriginais.slice();
             paginaAtual = 1;
             limparFiltros();
-            filterNome.value = '';
-            filterPlano.value = '';
-            filterOLT.value = '';
-            filterMEC.value = '';
-            filterStatus.value = '';
             aplicarFiltros(true);
             totalInfo.textContent = `📌 Total: ${dadosOriginais.length} clientes`;
         }
@@ -497,13 +571,16 @@
             if (paginaAtual < totalPaginas) { paginaAtual++; atualizarTabela(); }
         });
 
-        document.querySelectorAll('.filter-group input').forEach(input => {
-            input.addEventListener('keypress', function(e) {
-                if (e.key === 'Enter') { e.preventDefault(); aplicarFiltros(true); }
-            });
+        filterNome.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') { e.preventDefault(); aplicarFiltros(true); }
         });
 
-        console.log('Sistema carregado – suporta XLSX, CSV e JSON com paginação.');
+        // Mudança nos selects dispara filtro automático
+        [filterPlano, filterOLT, filterMEC, filterLogin, filterOnuMac, filterStatus].forEach(sel => {
+            sel.addEventListener('change', () => aplicarFiltros(true));
+        });
+
+        console.log('Sistema com filtro ONU MAC por prefixo (4 primeiros caracteres) carregado.');
     })();
 </script>
 </body>
