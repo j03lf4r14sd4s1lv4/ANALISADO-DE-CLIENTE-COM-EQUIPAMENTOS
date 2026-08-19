@@ -1,0 +1,783 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema de Análise de Clientes - OLT (com suporte a .xlsx)</title>
+    <!-- SheetJS para ler arquivos Excel -->
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
+    <style>
+        * {
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        body {
+            background: #f4f6f9;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+        }
+        .container {
+            max-width: 1400px;
+            width: 100%;
+            background: white;
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+        }
+        h1 {
+            margin-top: 0;
+            color: #1a2b4a;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        h1 small {
+            font-size: 0.6rem;
+            font-weight: 400;
+            color: #5e6f8d;
+            margin-left: 10px;
+        }
+        .upload-area {
+            background: #f0f4fe;
+            border: 2px dashed #b3c7e5;
+            border-radius: 10px;
+            padding: 25px;
+            text-align: center;
+            margin-bottom: 25px;
+            transition: 0.2s;
+            cursor: pointer;
+        }
+        .upload-area:hover {
+            background: #e6edfc;
+            border-color: #7a9bcb;
+        }
+        .upload-area input[type="file"] {
+            display: none;
+        }
+        .upload-label {
+            display: inline-block;
+            background: #1a2b4a;
+            color: white;
+            padding: 10px 25px;
+            border-radius: 6px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+        .upload-label:hover {
+            background: #2c406a;
+        }
+        .info-bar {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            align-items: center;
+            background: #f8faff;
+            padding: 12px 18px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border: 1px solid #dde5f0;
+        }
+        .info-bar span {
+            font-weight: 500;
+            color: #1a2b4a;
+        }
+        .info-bar .badge {
+            background: #1a2b4a;
+            color: white;
+            padding: 4px 14px;
+            border-radius: 30px;
+            font-size: 0.9rem;
+        }
+        .filters {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px 20px;
+            background: #f8faff;
+            padding: 18px 20px;
+            border-radius: 10px;
+            margin-bottom: 25px;
+            border: 1px solid #dde5f0;
+            align-items: flex-end;
+        }
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            flex: 1 0 150px;
+            min-width: 130px;
+        }
+        .filter-group label {
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: #3a4b6a;
+            letter-spacing: 0.3px;
+            text-transform: uppercase;
+        }
+        .filter-group input,
+        .filter-group select {
+            padding: 8px 12px;
+            border: 1px solid #ccd7e8;
+            border-radius: 6px;
+            font-size: 0.95rem;
+            background: white;
+            transition: 0.15s;
+            width: 100%;
+        }
+        .filter-group input:focus,
+        .filter-group select:focus {
+            outline: none;
+            border-color: #1a2b4a;
+            box-shadow: 0 0 0 3px rgba(26, 43, 74, 0.15);
+        }
+        .filter-actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            align-items: center;
+            margin-left: auto;
+        }
+        .btn {
+            padding: 8px 20px;
+            border: none;
+            border-radius: 6px;
+            font-weight: 500;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: 0.15s;
+            background: #e2e8f2;
+            color: #1a2b4a;
+        }
+        .btn-primary {
+            background: #1a2b4a;
+            color: white;
+        }
+        .btn-primary:hover {
+            background: #2c406a;
+        }
+        .btn-success {
+            background: #1f8b4c;
+            color: white;
+        }
+        .btn-success:hover {
+            background: #17733e;
+        }
+        .btn-danger {
+            background: #b13e3e;
+            color: white;
+        }
+        .btn-danger:hover {
+            background: #932f2f;
+        }
+        .btn-outline {
+            background: transparent;
+            border: 1px solid #b3c7e5;
+        }
+        .btn-outline:hover {
+            background: #e6edfc;
+        }
+        .table-wrapper {
+            overflow-x: auto;
+            margin-top: 10px;
+            border-radius: 8px;
+            border: 1px solid #dde5f0;
+            max-height: 600px;
+            overflow-y: auto;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.85rem;
+            min-width: 700px;
+        }
+        th {
+            background: #e9eff7;
+            color: #1a2b4a;
+            font-weight: 600;
+            padding: 12px 10px;
+            text-align: left;
+            white-space: nowrap;
+            position: sticky;
+            top: 0;
+            z-index: 2;
+        }
+        td {
+            padding: 10px;
+            border-bottom: 1px solid #e9eff7;
+            vertical-align: middle;
+        }
+        tr:hover td {
+            background: #f4f9ff;
+        }
+        .highlight-olt {
+            background: #fff3cd !important;
+        }
+        .highlight-olt td:first-child {
+            border-left: 4px solid #f1c40f;
+        }
+        .no-data {
+            text-align: center;
+            padding: 40px 20px;
+            color: #7a8aa8;
+            font-size: 1.1rem;
+        }
+        .footer-tools {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 20px;
+            gap: 15px;
+        }
+        .footer-tools .left {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        @media (max-width: 700px) {
+            .filters {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            .filter-actions {
+                margin-left: 0;
+                justify-content: flex-end;
+            }
+            .info-bar {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 8px;
+            }
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+
+    <h1>
+        📊 Análise de Clientes - OLT
+        <small>Identifique clientes com aparelho OLT para troca</small>
+    </h1>
+
+    <!-- Upload -->
+    <div class="upload-area" id="uploadArea">
+        <p style="margin: 0 0 12px 0; color: #1a2b4a; font-weight: 500;">
+            📂 Arraste ou clique para carregar arquivo (CSV, JSON ou XLSX)
+        </p>
+        <input type="file" id="fileInput" accept=".csv,.json,.xlsx,.xls">
+        <label for="fileInput" class="upload-label">Escolher arquivo</label>
+        <p style="margin: 10px 0 0 0; font-size: 0.85rem; color: #5e6f8d;">
+            Formatos suportados: CSV, JSON, XLSX (Excel).<br>
+            Colunas reconhecidas automaticamente: <strong>Transmissor</strong> (OLT), <strong>Caixa de atendimento</strong> (MEC), <strong>Plano</strong>, <strong>Cliente</strong>, <strong>Status contrato</strong>, etc.
+        </p>
+    </div>
+
+    <!-- Info bar -->
+    <div class="info-bar" id="infoBar">
+        <span id="totalInfo">Nenhum dado carregado</span>
+        <span id="filteredInfo" class="badge">0 exibidos</span>
+    </div>
+
+    <!-- Filtros -->
+    <div class="filters" id="filtersContainer">
+        <div class="filter-group">
+            <label for="filterNome">Nome / ID</label>
+            <input type="text" id="filterNome" placeholder="Buscar...">
+        </div>
+        <div class="filter-group">
+            <label for="filterPlano">Plano</label>
+            <input type="text" id="filterPlano" placeholder="Ex: Premium">
+        </div>
+        <div class="filter-group">
+            <label for="filterOLT">Aparelho OLT</label>
+            <input type="text" id="filterOLT" placeholder="Modelo ou status">
+        </div>
+        <div class="filter-group">
+            <label for="filterMEC">Aparelho MEC</label>
+            <input type="text" id="filterMEC" placeholder="Modelo ou status">
+        </div>
+        <div class="filter-group">
+            <label for="filterStatus">Status</label>
+            <select id="filterStatus">
+                <option value="">Todos</option>
+                <option value="ativo">Ativo</option>
+                <option value="inativo">Inativo</option>
+                <option value="suspenso">Suspenso</option>
+                <option value="cancelado">Cancelado</option>
+                <option value="bloqueio automático">Bloqueio Automático</option>
+                <option value="bloqueio manual">Bloqueio Manual</option>
+            </select>
+        </div>
+        <div class="filter-actions">
+            <button class="btn btn-primary" id="btnFiltrar">🔍 Filtrar</button>
+            <button class="btn btn-outline" id="btnLimpar">Limpar</button>
+            <button class="btn btn-success" id="btnTrocaOLT">🔄 Clientes com OLT para troca</button>
+        </div>
+    </div>
+
+    <!-- Tabela -->
+    <div class="table-wrapper">
+        <table>
+            <thead>
+                <tr id="tableHeader">
+                    <!-- Preenchido dinamicamente -->
+                </tr>
+            </thead>
+            <tbody id="tableBody">
+                <tr><td colspan="10" class="no-data">Carregue um arquivo para começar</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Rodapé com ferramentas -->
+    <div class="footer-tools">
+        <div class="left">
+            <button class="btn btn-primary" id="btnExportar">⬇️ Exportar filtrados (CSV)</button>
+            <button class="btn btn-outline" id="btnResetar">🔄 Recarregar dados originais</button>
+        </div>
+        <span style="color:#5e6f8d; font-size:0.9rem;" id="rowCount">0 registros</span>
+    </div>
+
+</div>
+
+<script>
+    (function() {
+        // ---------- Estado ----------
+        let dadosOriginais = [];          // array de objetos com todos os dados
+        let dadosExibidos = [];           // array após filtros
+        let colunas = [];                // nomes das colunas (para cabeçalho)
+        let arquivoCarregado = false;
+
+        // Elementos DOM
+        const fileInput = document.getElementById('fileInput');
+        const uploadArea = document.getElementById('uploadArea');
+        const tableHeader = document.getElementById('tableHeader');
+        const tableBody = document.getElementById('tableBody');
+        const totalInfo = document.getElementById('totalInfo');
+        const filteredInfo = document.getElementById('filteredInfo');
+        const rowCount = document.getElementById('rowCount');
+
+        const filterNome = document.getElementById('filterNome');
+        const filterPlano = document.getElementById('filterPlano');
+        const filterOLT = document.getElementById('filterOLT');
+        const filterMEC = document.getElementById('filterMEC');
+        const filterStatus = document.getElementById('filterStatus');
+
+        const btnFiltrar = document.getElementById('btnFiltrar');
+        const btnLimpar = document.getElementById('btnLimpar');
+        const btnTrocaOLT = document.getElementById('btnTrocaOLT');
+        const btnExportar = document.getElementById('btnExportar');
+        const btnResetar = document.getElementById('btnResetar');
+
+        // ---------- Funções auxiliares ----------
+        function normalizarString(str) {
+            if (!str) return '';
+            return str.toString().toLowerCase().trim();
+        }
+
+        // Mapeamento de colunas do arquivo exemplo para os campos internos
+        function mapearColunas(dados, cabecalho) {
+            // Define um mapa de sinônimos para cada campo alvo
+            const mapa = {
+                'id': ['id', 'código', 'codigo', 'cliente_id', 'id contrato'],
+                'nome': ['nome', 'cliente', 'nome_cliente', 'razao'],
+                'plano': ['plano', 'tipo_plano', 'pacote'],
+                'aparelho_olt': ['aparelho_olt', 'olt', 'modelo_olt', 'transmissor'],
+                'aparelho_mec': ['aparelho_mec', 'mec', 'modelo_mec', 'caixa de atendimento'],
+                'status': ['status', 'situacao', 'ativo', 'status contrato', 'status acesso']
+            };
+
+            // Encontra a coluna correspondente para cada campo
+            const colMap = {};
+            const cabecalhoLower = cabecalho.map(c => c.toLowerCase().trim());
+            for (const [padrao, variacoes] of Object.entries(mapa)) {
+                for (const variacao of variacoes) {
+                    const idx = cabecalhoLower.indexOf(variacao);
+                    if (idx !== -1) {
+                        colMap[cabecalho[idx]] = padrao;
+                        break;
+                    }
+                }
+            }
+
+            // Se não encontrou 'aparelho_olt', tenta usar 'Transmissor' (caso sensível) ou 'olt'
+            if (!Object.values(colMap).includes('aparelho_olt')) {
+                for (const col of cabecalho) {
+                    if (col.toLowerCase().includes('transmissor') || col.toLowerCase().includes('olt')) {
+                        colMap[col] = 'aparelho_olt';
+                        break;
+                    }
+                }
+            }
+            if (!Object.values(colMap).includes('aparelho_mec')) {
+                for (const col of cabecalho) {
+                    if (col.toLowerCase().includes('caixa de atendimento') || col.toLowerCase().includes('mec')) {
+                        colMap[col] = 'aparelho_mec';
+                        break;
+                    }
+                }
+            }
+
+            // Aplica o renomeio
+            if (Object.keys(colMap).length > 0) {
+                dados = dados.map(obj => {
+                    const novo = {};
+                    for (const [original, novoNome] of Object.entries(colMap)) {
+                        if (obj[original] !== undefined) {
+                            novo[novoNome] = obj[original];
+                        }
+                    }
+                    // Mantém outras colunas não mapeadas com nome original
+                    for (const key of Object.keys(obj)) {
+                        if (!colMap[key]) {
+                            novo[key] = obj[key];
+                        }
+                    }
+                    return novo;
+                });
+                // Atualiza cabeçalho com os novos nomes (usando os mapeados)
+                const novasColunas = Object.keys(dados[0] || {});
+                // Mantém a ordem original, mas substitui os nomes mapeados
+                const cabecalhoFinal = cabecalho.map(col => colMap[col] || col);
+                // Usa o conjunto de colunas únicas preservando a ordem
+                const colunasUnicas = [];
+                const set = new Set();
+                for (const col of cabecalhoFinal) {
+                    if (!set.has(col)) {
+                        set.add(col);
+                        colunasUnicas.push(col);
+                    }
+                }
+                // Reorganiza os objetos para terem todas as colunas na ordem definida
+                dados = dados.map(obj => {
+                    const novo = {};
+                    for (const col of colunasUnicas) {
+                        novo[col] = obj[col] !== undefined ? obj[col] : '';
+                    }
+                    return novo;
+                });
+                return { dados, colunas: colunasUnicas };
+            }
+            return { dados, colunas: cabecalho };
+        }
+
+        // Parser CSV simples (suporta vírgula, ponto-e-vírgula, tab)
+        function parseCSV(texto) {
+            const linhas = texto.split(/\r?\n/).filter(l => l.trim() !== '');
+            if (linhas.length < 2) throw new Error('Arquivo CSV vazio ou inválido');
+
+            let separador = ',';
+            const primeira = linhas[0];
+            if (primeira.includes('\t')) separador = '\t';
+            else if (primeira.includes(';')) separador = ';';
+
+            const cabecalho = linhas[0].split(separador).map(s => s.trim().replace(/^"|"$/g, ''));
+            const dados = [];
+            for (let i = 1; i < linhas.length; i++) {
+                const valores = linhas[i].split(separador).map(s => s.trim().replace(/^"|"$/g, ''));
+                const obj = {};
+                cabecalho.forEach((col, idx) => {
+                    obj[col] = (valores[idx] !== undefined) ? valores[idx] : '';
+                });
+                dados.push(obj);
+            }
+            return { cabecalho, dados };
+        }
+
+        // Carregar dados a partir de arquivo (suporta .xlsx via SheetJS)
+        function carregarArquivo(file) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    let dados = [];
+                    let cabecalho = [];
+                    const nomeArquivo = file.name.toLowerCase();
+
+                    if (nomeArquivo.endsWith('.xlsx') || nomeArquivo.endsWith('.xls')) {
+                        // Usa SheetJS para ler Excel
+                        const data = new Uint8Array(e.target.result);
+                        const workbook = XLSX.read(data, { type: 'array' });
+                        const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                        const json = XLSX.utils.sheet_to_json(firstSheet, { defval: '' });
+                        if (json.length === 0) throw new Error('Planilha vazia');
+                        // Extrai cabeçalho da primeira linha
+                        const headers = Object.keys(json[0]);
+                        cabecalho = headers;
+                        dados = json;
+                    } else if (nomeArquivo.endsWith('.json')) {
+                        const parsed = JSON.parse(e.target.result);
+                        if (!Array.isArray(parsed)) throw new Error('JSON deve ser um array de objetos');
+                        dados = parsed;
+                        if (dados.length > 0) cabecalho = Object.keys(dados[0]);
+                    } else {
+                        // Assume CSV
+                        const conteudo = e.target.result;
+                        const resultado = parseCSV(conteudo);
+                        cabecalho = resultado.cabecalho;
+                        dados = resultado.dados;
+                    }
+
+                    if (dados.length === 0) {
+                        alert('Nenhum registro encontrado no arquivo.');
+                        return;
+                    }
+
+                    // Mapeia colunas
+                    const resultadoMap = mapearColunas(dados, cabecalho);
+                    dados = resultadoMap.dados;
+                    const colunasFinais = resultadoMap.colunas;
+
+                    dadosOriginais = dados;
+                    colunas = colunasFinais;
+                    arquivoCarregado = true;
+
+                    // Atualiza UI
+                    atualizarDados(dadosOriginais);
+                    totalInfo.textContent = `📌 Total: ${dadosOriginais.length} clientes`;
+                    document.querySelector('.upload-area p:first-child').innerHTML = `✅ Arquivo carregado: <strong>${file.name}</strong> (${dadosOriginais.length} registros)`;
+                    document.querySelector('.upload-area p:last-child').style.display = 'none';
+
+                } catch (err) {
+                    alert('Erro ao processar arquivo: ' + err.message);
+                    console.error(err);
+                }
+            };
+
+            if (file.name.toLowerCase().endsWith('.xlsx') || file.name.toLowerCase().endsWith('.xls')) {
+                reader.readAsArrayBuffer(file);
+            } else {
+                reader.readAsText(file);
+            }
+        }
+
+        // Atualiza a tabela com os dados fornecidos
+        function atualizarDados(dados) {
+            dadosExibidos = dados;
+            renderizarTabela(dados);
+            filteredInfo.textContent = `${dados.length} exibidos`;
+            rowCount.textContent = `${dados.length} registros`;
+        }
+
+        // Renderiza tabela
+        function renderizarTabela(dados) {
+            // Cabeçalho
+            let headerHtml = '';
+            colunas.forEach(col => {
+                headerHtml += `<th>${col.replace(/_/g, ' ').toUpperCase()}</th>`;
+            });
+            tableHeader.innerHTML = headerHtml;
+
+            // Corpo
+            if (dados.length === 0) {
+                tableBody.innerHTML = `<tr><td colspan="${colunas.length}" class="no-data">Nenhum registro corresponde aos filtros</td></tr>`;
+                return;
+            }
+
+            let bodyHtml = '';
+            dados.forEach((row, index) => {
+                // Verifica se é um cliente com OLT (consideramos que precisa de troca se aparelho_olt contiver "trocar" ou "defeito")
+                const olt = (row.aparelho_olt || '').toString().toLowerCase();
+                const isOLT = olt.includes('trocar') || olt.includes('defeito') || olt.includes('substituir') || olt.includes('antigo');
+                const classe = isOLT ? 'highlight-olt' : '';
+
+                bodyHtml += `<tr class="${classe}">`;
+                colunas.forEach(col => {
+                    let valor = row[col] !== undefined ? row[col] : '';
+                    // Se for a coluna aparelho_olt e tiver marcação, adiciona ícone
+                    if (col === 'aparelho_olt' && isOLT) {
+                        valor = '🔴 ' + valor;
+                    }
+                    bodyHtml += `<td>${valor}</td>`;
+                });
+                bodyHtml += '</tr>';
+            });
+            tableBody.innerHTML = bodyHtml;
+        }
+
+        // Filtra dados baseado nos campos
+        function aplicarFiltros() {
+            if (!arquivoCarregado) {
+                alert('Carregue um arquivo primeiro.');
+                return;
+            }
+
+            const nomeFiltro = normalizarString(filterNome.value);
+            const planoFiltro = normalizarString(filterPlano.value);
+            const oltFiltro = normalizarString(filterOLT.value);
+            const mecFiltro = normalizarString(filterMEC.value);
+            const statusFiltro = filterStatus.value;
+
+            const filtrados = dadosOriginais.filter(row => {
+                // Nome/ID
+                if (nomeFiltro) {
+                    const nome = normalizarString(row.nome || row.id || '');
+                    if (!nome.includes(nomeFiltro)) return false;
+                }
+                // Plano
+                if (planoFiltro) {
+                    const plano = normalizarString(row.plano || '');
+                    if (!plano.includes(planoFiltro)) return false;
+                }
+                // OLT
+                if (oltFiltro) {
+                    const olt = normalizarString(row.aparelho_olt || '');
+                    if (!olt.includes(oltFiltro)) return false;
+                }
+                // MEC
+                if (mecFiltro) {
+                    const mec = normalizarString(row.aparelho_mec || '');
+                    if (!mec.includes(mecFiltro)) return false;
+                }
+                // Status
+                if (statusFiltro) {
+                    const status = normalizarString(row.status || '');
+                    if (status !== statusFiltro) return false;
+                }
+                return true;
+            });
+
+            atualizarDados(filtrados);
+        }
+
+        // Limpa filtros
+        function limparFiltros() {
+            filterNome.value = '';
+            filterPlano.value = '';
+            filterOLT.value = '';
+            filterMEC.value = '';
+            filterStatus.value = '';
+            if (arquivoCarregado) {
+                atualizarDados(dadosOriginais);
+            }
+        }
+
+        // Filtro especial: clientes com OLT para troca
+        function filtrarTrocaOLT() {
+            if (!arquivoCarregado) {
+                alert('Carregue um arquivo primeiro.');
+                return;
+            }
+            const filtrados = dadosOriginais.filter(row => {
+                const olt = (row.aparelho_olt || '').toString().toLowerCase();
+                return olt.includes('trocar') || olt.includes('defeito') || olt.includes('substituir') || olt.includes('antigo');
+            });
+            atualizarDados(filtrados);
+            filterOLT.value = 'trocar|defeito|substituir|antigo';
+        }
+
+        // Exportar CSV
+        function exportarCSV(dados) {
+            if (dados.length === 0) {
+                alert('Não há dados para exportar.');
+                return;
+            }
+            const cabecalho = colunas.join(',');
+            const linhas = dados.map(row => {
+                return colunas.map(col => {
+                    let val = row[col] !== undefined ? row[col] : '';
+                    if (typeof val === 'string' && (val.includes(',') || val.includes('"') || val.includes('\n'))) {
+                        val = '"' + val.replace(/"/g, '""') + '"';
+                    }
+                    return val;
+                }).join(',');
+            });
+            const csv = [cabecalho, ...linhas].join('\n');
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = 'clientes_filtrados.csv';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        // Resetar dados originais
+        function resetarDados() {
+            if (arquivoCarregado) {
+                atualizarDados(dadosOriginais);
+                limparFiltros(); // limpa campos, mas mantém dados
+                filterNome.value = '';
+                filterPlano.value = '';
+                filterOLT.value = '';
+                filterMEC.value = '';
+                filterStatus.value = '';
+                totalInfo.textContent = `📌 Total: ${dadosOriginais.length} clientes`;
+                filteredInfo.textContent = `${dadosOriginais.length} exibidos`;
+                rowCount.textContent = `${dadosOriginais.length} registros`;
+            } else {
+                alert('Nenhum dado carregado.');
+            }
+        }
+
+        // ---------- Eventos ----------
+        fileInput.addEventListener('change', function(e) {
+            if (this.files && this.files[0]) {
+                carregarArquivo(this.files[0]);
+            }
+            this.value = '';
+        });
+
+        uploadArea.addEventListener('dragover', function(e) {
+            e.preventDefault();
+            this.style.borderColor = '#1a2b4a';
+            this.style.background = '#e6edfc';
+        });
+        uploadArea.addEventListener('dragleave', function(e) {
+            e.preventDefault();
+            this.style.borderColor = '#b3c7e5';
+            this.style.background = '#f0f4fe';
+        });
+        uploadArea.addEventListener('drop', function(e) {
+            e.preventDefault();
+            this.style.borderColor = '#b3c7e5';
+            this.style.background = '#f0f4fe';
+            const files = e.dataTransfer.files;
+            if (files && files[0]) {
+                carregarArquivo(files[0]);
+            }
+        });
+        uploadArea.addEventListener('click', function() {
+            fileInput.click();
+        });
+
+        btnFiltrar.addEventListener('click', aplicarFiltros);
+
+        btnLimpar.addEventListener('click', function() {
+            limparFiltros();
+            if (arquivoCarregado) {
+                totalInfo.textContent = `📌 Total: ${dadosOriginais.length} clientes`;
+                filteredInfo.textContent = `${dadosOriginais.length} exibidos`;
+                rowCount.textContent = `${dadosOriginais.length} registros`;
+            }
+        });
+
+        btnTrocaOLT.addEventListener('click', filtrarTrocaOLT);
+
+        btnExportar.addEventListener('click', function() {
+            if (dadosExibidos.length === 0) {
+                alert('Não há dados filtrados para exportar.');
+                return;
+            }
+            exportarCSV(dadosExibidos);
+        });
+
+        btnResetar.addEventListener('click', resetarDados);
+
+        document.querySelectorAll('.filter-group input').forEach(input => {
+            input.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    aplicarFiltros();
+                }
+            });
+        });
+
+        console.log('Sistema de análise de clientes OLT carregado (com suporte a XLSX).');
+    })();
+</script>
+</body>
+</html>
